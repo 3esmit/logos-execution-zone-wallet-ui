@@ -31,6 +31,7 @@ QVariant LEZWalletAccountModel::data(const QModelIndex& index, int role) const
     case SectionKeyRole: return e.sectionKey;
     case KeysJsonRole: return e.keysJson;
     case IsFirstInGroupRole: return e.isFirstInGroup;
+    case IsInitializedRole: return e.isInitialized;
     default:          return QVariant();
     }
 }
@@ -45,7 +46,8 @@ QHash<int, QByteArray> LEZWalletAccountModel::roleNames() const
         { IsPublicRole, "isPublic" },
         { SectionKeyRole, "sectionKey" },
         { KeysJsonRole, "keysJson" },
-        { IsFirstInGroupRole, "isFirstInGroup" }
+        { IsFirstInGroupRole, "isFirstInGroup" },
+        { IsInitializedRole, "isInitialized" }
     };
 }
 
@@ -71,6 +73,7 @@ void LEZWalletAccountModel::replaceFromVariantList(const QVariantList& list)
             const QVariantMap map = v.toMap();
             e.accountId = map.value(QStringLiteral("account_id")).toString();
             e.isPublic = map.value(QStringLiteral("is_public"), true).toBool();
+            e.isInitialized = map.value(QStringLiteral("is_initialized"), false).toBool();
             if (e.isPublic) {
                 e.sectionKey = PublicSectionKey;
             } else {
@@ -125,6 +128,20 @@ void LEZWalletAccountModel::setVaultBalanceByAccountId(const QString& accountId,
                 m_entries[i].vaultBalance = vaultBalance;
                 QModelIndex idx = index(i, 0);
                 emit dataChanged(idx, idx, { VaultBalanceRole });
+            }
+            return;
+        }
+    }
+}
+
+void LEZWalletAccountModel::setInitializedByAccountId(const QString& accountId, bool isInitialized)
+{
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries.at(i).accountId == accountId) {
+            if (m_entries.at(i).isInitialized != isInitialized) {
+                m_entries[i].isInitialized = isInitialized;
+                QModelIndex idx = index(i, 0);
+                emit dataChanged(idx, idx, { IsInitializedRole });
             }
             return;
         }

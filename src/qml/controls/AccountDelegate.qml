@@ -15,6 +15,17 @@ ItemDelegate {
     // logos.module() bridge in the parent view.
     signal copyRequested(string text)
 
+    // Emitted when the user clicks "Initialize" on an uninitialized account. The
+    // parent wires this to backend.initializeAccount(...) for the same reason as
+    // copyRequested above. Public-only: public account initialization requires
+    // authorization, so it requires a manual init signed by the owner. Private
+    // accounts don't need authorization to initialize, so they never need this button.
+    signal initializeRequested(string accountId)
+
+    // Set by the parent while this account's initializeAccount() call is in flight,
+    // so the button can show it took the click instead of appearing to do nothing.
+    property bool initializing: false
+
     leftPadding: Theme.spacing.medium
     rightPadding: Theme.spacing.medium
     topPadding: Theme.spacing.medium
@@ -54,6 +65,22 @@ ItemDelegate {
                 }
             }
 
+            Rectangle {
+                Layout.preferredWidth: initLabel.implicitWidth + Theme.spacing.small * 2
+                Layout.preferredHeight: initLabel.implicitHeight + 4
+                radius: 4
+                color: Theme.colors.getColor(
+                    model.isInitialized ? Theme.palette.success : Theme.palette.warning, 0.18)
+
+                LogosText {
+                    id: initLabel
+                    anchors.centerIn: parent
+                    text: model.isInitialized ? qsTr("Initialized") : qsTr("Uninitialized")
+                    font.pixelSize: Theme.typography.secondaryText
+                    color: model.isInitialized ? Theme.palette.success : Theme.palette.warning
+                }
+            }
+
             Item { Layout.fillWidth: true }
 
             LogosText {
@@ -81,6 +108,15 @@ ItemDelegate {
                 visible: addressLabel.text
                 icon.color: Theme.palette.textMuted
             }
+        }
+
+        FeedbackButton {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 32
+            visible: (model.isPublic ?? true) && !model.isInitialized
+            enabled: !root.initializing
+            text: root.initializing ? qsTr("Initializing…") : qsTr("Initialize")
+            onClicked: root.initializeRequested(model.accountId ?? "")
         }
     }
 }
