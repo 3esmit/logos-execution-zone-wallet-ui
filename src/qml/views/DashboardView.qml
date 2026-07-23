@@ -19,10 +19,15 @@ Rectangle {
     property bool transferPending: false
     property int lastSyncedBlock: 0
     property int currentBlockHeight: 0
+    property string registrationAccountId: ""
+    property bool registrationPending: false
+    property string registrationResult: ""
+    property bool registrationResultIsError: false
 
     // --- Public API: output signals (parent connects and calls backend) ---
     signal createPublicAccountRequested()
     signal createPrivateAccountRequested()
+    signal registerPublicAccountRequested(string accountId)
     signal fetchBalancesRequested()
     signal transferPublicRequested(string fromAccountId, string toAddress, string amount)
     signal transferPrivateRequested(string fromAccountId, string toKeysJsonOrAddress, string amount)
@@ -50,9 +55,14 @@ Rectangle {
             accountModel: root.accountModel
             lastSyncedBlock: root.lastSyncedBlock
             currentBlockHeight: root.currentBlockHeight
+            registrationAccountId: root.registrationAccountId
+            registrationPending: root.registrationPending
+            registrationResult: root.registrationResult
+            registrationResultIsError: root.registrationResultIsError
 
             onCreatePublicAccountRequested: root.createPublicAccountRequested()
             onCreatePrivateAccountRequested: root.createPrivateAccountRequested()
+            onRegisterPublicAccountRequested: (accountId) => root.registerPublicAccountRequested(accountId)
             onFetchBalancesRequested: root.fetchBalancesRequested()
             onCopyRequested: (text) => root.copyRequested(text)
         }

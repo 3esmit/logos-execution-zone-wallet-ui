@@ -80,6 +80,28 @@ Rectangle {
             dashboardView.transferResultIsError = isError
             dashboardView.transferTxHash = (obj && obj.tx_hash) ? obj.tx_hash : ""
         }
+
+        function applyRegistrationResult(dashboardView, raw) {
+            var message = raw || ""
+            var isError = false
+            try {
+                var result = JSON.parse(raw)
+                if (result.success) {
+                    message = result.tx_hash
+                        ? qsTr("Registration submitted. Tx: %1").arg(result.tx_hash)
+                        : qsTr("Registration submitted.")
+                } else if (result.error) {
+                    message = ffiErrors.format(result.error)
+                    isError = true
+                }
+            } catch (e) {
+                if (message.length > 0)
+                    isError = true
+            }
+            dashboardView.registrationPending = false
+            dashboardView.registrationResult = message
+            dashboardView.registrationResultIsError = isError
+        }
     }
 
     QtObject {
@@ -159,6 +181,24 @@ Rectangle {
                     logos.watch(backend.createAccountPrivate(),
                         function(_id) { /* ignored */ },
                         function(error) { console.warn("createAccountPrivate failed:", error) })
+                }
+                onRegisterPublicAccountRequested: (accountId) => {
+                    if (!backend) return
+                    dashboardView.registrationAccountId = accountId
+                    dashboardView.registrationPending = true
+                    dashboardView.registrationResult = ""
+                    dashboardView.registrationResultIsError = false
+                    logos.watch(backend.registerPublicAccount(accountId),
+                        function(raw) {
+                            ffiErrors.applyRegistrationResult(dashboardView, raw)
+                            if (!dashboardView.registrationResultIsError)
+                                backend.refreshBalances()
+                        },
+                        function(error) {
+                            dashboardView.registrationPending = false
+                            dashboardView.registrationResult = qsTr("Error: %1").arg(error)
+                            dashboardView.registrationResultIsError = true
+                        })
                 }
                 onFetchBalancesRequested: {
                     if (!backend) { console.warn("backend is null"); return }

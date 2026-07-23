@@ -42,6 +42,7 @@ public slots:
     QString getPublicAccountKey(QString accountIdHex) override;
     QString getPrivateAccountKeys(QString accountIdHex) override;
     bool syncToBlock(quint64 blockId) override;
+    QString registerPublicAccount(QString accountIdHex) override;
     QString transferPublic(QString fromHex, QString toHex, QString amountStr) override;
     QString transferPrivate(QString fromHex, QString toHex, QString amountStr) override;
     QString transferPrivateOwned(QString fromHex, QString toHex, QString amountStr) override;

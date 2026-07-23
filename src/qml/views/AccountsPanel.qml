@@ -15,10 +15,15 @@ Rectangle {
     property var accountModel: null
     property int lastSyncedBlock: 0
     property int currentBlockHeight: 0
+    property string registrationAccountId: ""
+    property bool registrationPending: false
+    property string registrationResult: ""
+    property bool registrationResultIsError: false
 
     // --- Public API: signals out ---
     signal createPublicAccountRequested()
     signal createPrivateAccountRequested()
+    signal registerPublicAccountRequested(string accountId)
     signal fetchBalancesRequested()
     signal copyRequested(string text)
 
@@ -172,7 +177,19 @@ Rectangle {
 
                 AccountDelegate {
                     Layout.fillWidth: true
+                    registrationStatusKnown: model.registrationStatusKnown ?? false
+                    needsRegistration: model.needsRegistration ?? false
+                    registrationPending: root.registrationPending
+                        && root.registrationAccountId === (model.accountId ?? "")
+                    registrationSubmitted: root.registrationAccountId === (model.accountId ?? "")
+                        && root.registrationResult.length > 0
+                        && !root.registrationResultIsError
+                    registrationResult: root.registrationAccountId === (model.accountId ?? "")
+                        ? root.registrationResult : ""
+                    registrationResultIsError: root.registrationAccountId === (model.accountId ?? "")
+                        && root.registrationResultIsError
                     onCopyRequested: (text) => root.copyRequested(text)
+                    onRegisterRequested: (accountId) => root.registerPublicAccountRequested(accountId)
                 }
             }
         }
