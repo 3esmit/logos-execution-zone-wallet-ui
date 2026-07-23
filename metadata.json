@@ -1,7 +1,7 @@
 {
   "name": "lez_wallet_ui",
   "display_name": "LEZ Wallet",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "ui_qml",
   "category": "wallet",
   "description": "Execution Zone Wallet UI module for the Logos application",
@@ -9,7 +9,7 @@
   "main": "lez_wallet_ui_plugin",
   "icon": "src/qml/icons/copy.svg",
   "view": "qml/ExecutionZoneWalletView.qml",
-  "dependencies": ["logos_execution_zone"],
+  "dependencies": ["lez_core"],
 
   "nix": {
     "packages": {
