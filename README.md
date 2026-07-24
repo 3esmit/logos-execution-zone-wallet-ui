@@ -60,6 +60,14 @@ nix run              # standalone app with wallet module
 nix develop          # enter development shell
 ```
 
+## Releases
+
+This repository owns releases of the portable `lez_wallet_ui` package. The
+manual workflow publishes prerelease LGX and sidecar assets for Linux AMD64 and
+Apple Silicon only; it does not dispatch a catalog update. See
+[the release guide](docs/releasing.md) for the version contract and release
+procedure.
+
 ## Module Structure
 
 ```
