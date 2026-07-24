@@ -4,7 +4,7 @@
   inputs = {
     logos-module-builder.url = "github:logos-co/logos-module-builder";
     nix-bundle-lgx.url = "github:logos-co/nix-bundle-lgx";
-    logos_execution_zone.url = "github:logos-blockchain/logos-execution-zone-module?rev=b555cd5e81e192989311848150e2d0d7ec3f4eee";
+    lez_core.url = "github:logos-blockchain/logos-execution-zone-module?rev=1d4db06ebcdd4879a4395efbe4993a15992a261b";
   };
 
   outputs = inputs@{ logos-module-builder, ... }:
