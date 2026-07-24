@@ -28,6 +28,8 @@ QVariant LEZWalletAccountModel::data(const QModelIndex& index, int role) const
     case BalanceRole: return e.balance;
     case VaultBalanceRole: return e.vaultBalance;
     case IsPublicRole: return e.isPublic;
+    case RegistrationStatusKnownRole: return e.registrationStatusKnown;
+    case NeedsRegistrationRole: return e.needsRegistration;
     case SectionKeyRole: return e.sectionKey;
     case KeysJsonRole: return e.keysJson;
     case IsFirstInGroupRole: return e.isFirstInGroup;
@@ -43,6 +45,8 @@ QHash<int, QByteArray> LEZWalletAccountModel::roleNames() const
         { BalanceRole, "balance" },
         { VaultBalanceRole, "vaultBalance" },
         { IsPublicRole, "isPublic" },
+        { RegistrationStatusKnownRole, "registrationStatusKnown" },
+        { NeedsRegistrationRole, "needsRegistration" },
         { SectionKeyRole, "sectionKey" },
         { KeysJsonRole, "keysJson" },
         { IsFirstInGroupRole, "isFirstInGroup" }
@@ -55,10 +59,10 @@ void LEZWalletAccountModel::replaceFromVariantList(const QVariantList& list)
     // account that's still present — carry those over so periodic re-listing (e.g. to
     // pick up newly discovered private accounts) doesn't make the claimable list and
     // balances flicker empty until the next refresh repopulates them.
-    QHash<QString, QPair<QString, QString>> previousBalances;
-    previousBalances.reserve(m_entries.size());
+    QHash<QString, LEZWalletAccountEntry> previousEntries;
+    previousEntries.reserve(m_entries.size());
     for (const LEZWalletAccountEntry& e : m_entries)
-        previousBalances.insert(e.accountId, qMakePair(e.balance, e.vaultBalance));
+        previousEntries.insert(e.accountId, e);
 
     beginResetModel();
     int oldCount = m_entries.size();
@@ -82,10 +86,12 @@ void LEZWalletAccountModel::replaceFromVariantList(const QVariantList& list)
             e.isPublic = true;
             e.sectionKey = PublicSectionKey;
         }
-        const auto previous = previousBalances.find(e.accountId);
-        if (previous != previousBalances.end()) {
-            e.balance = previous->first;
-            e.vaultBalance = previous->second;
+        const auto previous = previousEntries.find(e.accountId);
+        if (previous != previousEntries.end()) {
+            e.balance = previous->balance;
+            e.vaultBalance = previous->vaultBalance;
+            e.registrationStatusKnown = previous->registrationStatusKnown;
+            e.needsRegistration = previous->needsRegistration;
         }
         m_entries.append(e);
     }
@@ -128,6 +134,27 @@ void LEZWalletAccountModel::setVaultBalanceByAccountId(const QString& accountId,
             }
             return;
         }
+    }
+}
+
+void LEZWalletAccountModel::setPublicAccountRegistrationStatus(
+    const QString& accountId,
+    const bool known,
+    const bool needsRegistration)
+{
+    for (int i = 0; i < m_entries.size(); ++i) {
+        LEZWalletAccountEntry& entry = m_entries[i];
+        if (entry.accountId != accountId || !entry.isPublic)
+            continue;
+        if (entry.registrationStatusKnown == known
+            && entry.needsRegistration == needsRegistration) {
+            return;
+        }
+        entry.registrationStatusKnown = known;
+        entry.needsRegistration = needsRegistration;
+        const QModelIndex idx = index(i, 0);
+        emit dataChanged(idx, idx, { RegistrationStatusKnownRole, NeedsRegistrationRole });
+        return;
     }
 }
 

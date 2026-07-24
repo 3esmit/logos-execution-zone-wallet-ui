@@ -15,6 +15,7 @@ class LEZWalletBackend
     SLOT(QString getPublicAccountKey(QString accountIdHex))
     SLOT(QString getPrivateAccountKeys(QString accountIdHex))
     SLOT(bool syncToBlock(quint64 blockId))
+    SLOT(QString registerPublicAccount(QString accountIdHex))
 
     SLOT(QString transferPublic(QString fromHex, QString toHex, QString amountStr))
     SLOT(QString transferPrivate(QString fromHex, QString toHex, QString amountStr))

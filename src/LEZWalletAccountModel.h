@@ -16,6 +16,8 @@ struct LEZWalletAccountEntry {
     QString balance;
     QString vaultBalance; // claimable balance held in this account's bridge vault PDA
     bool isPublic = true;
+    bool registrationStatusKnown = false;
+    bool needsRegistration = false;
     QString sectionKey;
     QString keysJson; // {nullifier_public_key, viewing_public_key} shared by the whole section; private only
     bool isFirstInGroup = false; // QML renders the section header above rows where this is true
@@ -35,6 +37,8 @@ public:
         BalanceRole,
         VaultBalanceRole,
         IsPublicRole,
+        RegistrationStatusKnownRole,
+        NeedsRegistrationRole,
         SectionKeyRole,
         KeysJsonRole,
         IsFirstInGroupRole
@@ -50,6 +54,7 @@ public:
     void replaceFromVariantList(const QVariantList& list);
     void setBalanceByAccountId(const QString& accountId, const QString& balance);
     void setVaultBalanceByAccountId(const QString& accountId, const QString& vaultBalance);
+    void setPublicAccountRegistrationStatus(const QString& accountId, bool known, bool needsRegistration);
     int count() const { return m_entries.size(); }
 
     // Authoritative isPublic lookup by account ID — used to validate/derive the flag

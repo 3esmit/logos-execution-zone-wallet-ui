@@ -33,6 +33,7 @@ namespace {
     // ~= 5s, matching LogosAPIConsumer's own connect-retry budget.
     const int MODULE_WARMUP_RETRY_MS = 50;
     const int MODULE_WARMUP_MAX_ATTEMPTS = 100;
+    const QString DEFAULT_PROGRAM_OWNER(64, QLatin1Char('0'));
 
     // Convert a decimal amount string to 32-char hex (16 bytes little-endian)
     // for transfer_public/transfer_private/transfer_private_owned.
@@ -244,6 +245,18 @@ void LEZWalletBackend::updateBalances()
         const QModelIndex idx = m_accountModel->index(i, 0);
         const QString addr = m_accountModel->data(idx, LEZWalletAccountModel::AccountIdRole).toString();
         const bool isPub = m_accountModel->data(idx, LEZWalletAccountModel::IsPublicRole).toBool();
+        if (isPub) {
+            const QString rawAccount = m_logos->lez_core.get_account_public(addr);
+            const QJsonDocument accountDocument = QJsonDocument::fromJson(rawAccount.toUtf8());
+            const bool known = accountDocument.isObject()
+                && accountDocument.object().value(QStringLiteral("program_owner")).isString();
+            const bool needsRegistration = known
+                && accountDocument.object().value(QStringLiteral("program_owner")).toString()
+                    == DEFAULT_PROGRAM_OWNER;
+            m_accountModel->setPublicAccountRegistrationStatus(addr, known, needsRegistration);
+            if (!known)
+                anyFailed = true;
+        }
         const QString bal = getBalance(addr, isPub);
         if (!bal.isEmpty())
             m_accountModel->setBalanceByAccountId(addr, bal);
@@ -309,6 +322,19 @@ bool LEZWalletBackend::syncToBlock(quint64 blockId)
 {
     int err = m_logos->lez_core.sync_to_block(blockId);
     return err == WALLET_FFI_SUCCESS;
+}
+
+QString LEZWalletBackend::registerPublicAccount(QString accountIdHex)
+{
+    const QString accountId = accountIdHex.trimmed();
+    if (!m_accountModel->isPublicAccount(accountId, false)) {
+        const QJsonObject result{
+            {QStringLiteral("success"), false},
+            {QStringLiteral("error"), QStringLiteral("Account is not an owned public account.")},
+        };
+        return QString::fromUtf8(QJsonDocument(result).toJson(QJsonDocument::Compact));
+    }
+    return m_logos->lez_core.register_public_account(accountId);
 }
 
 QString LEZWalletBackend::transferPublic(QString fromHex, QString toHex, QString amountStr)

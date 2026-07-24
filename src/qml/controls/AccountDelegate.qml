@@ -14,6 +14,13 @@ ItemDelegate {
     // the global QML scope for `backend` since it now lives behind the
     // logos.module() bridge in the parent view.
     signal copyRequested(string text)
+    signal registerRequested(string accountId)
+    property bool registrationStatusKnown: false
+    property bool needsRegistration: false
+    property bool registrationPending: false
+    property bool registrationSubmitted: false
+    property string registrationResult: ""
+    property bool registrationResultIsError: false
 
     leftPadding: Theme.spacing.medium
     rightPadding: Theme.spacing.medium
@@ -80,6 +87,39 @@ ItemDelegate {
                 onCopyText: root.copyRequested(Base58.encode(model.accountId ?? ""))
                 visible: addressLabel.text
                 icon.color: Theme.palette.textMuted
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            visible: model.isPublic
+            spacing: Theme.spacing.small
+
+            LogosText {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                font.pixelSize: Theme.typography.secondaryText
+                color: root.registrationResultIsError ? Theme.palette.error : Theme.palette.textSecondary
+                text: {
+                    if (root.registrationPending)
+                        return qsTr("Submitting registration…")
+                    if (root.registrationResultIsError)
+                        return root.registrationResult
+                    if (root.registrationSubmitted && root.needsRegistration)
+                        return root.registrationResult
+                    if (root.registrationStatusKnown && !root.needsRegistration)
+                        return qsTr("Registered on chain")
+                    if (root.registrationStatusKnown)
+                        return qsTr("Register before receiving transfers.")
+                    return qsTr("Checking on-chain status…")
+                }
+            }
+
+            LogosButton {
+                visible: root.needsRegistration && !root.registrationSubmitted
+                enabled: !root.registrationPending
+                text: qsTr("Register on chain")
+                onClicked: root.registerRequested(model.accountId ?? "")
             }
         }
     }
