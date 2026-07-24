@@ -1,0 +1,52 @@
+name: Publish LEZ Wallet UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: Rebuild and replace an already published release for this version
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Validate release contract
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Require the source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" != "refs/heads/master" ]]; then
+            echo "::error::releases must be dispatched from master"
+            exit 1
+          fi
+
+      - name: Validate metadata and release contract
+        run: bash tests/release_contract_test.sh
+
+  release:
+    name: Build and publish package
+    needs: preflight
+    permissions:
+      contents: write
+    uses: 3esmit/logos-modules-release-action/.github/workflows/release.yml@7e09ddf90bf33ce29ef3505609332175a6cd06c9
+    with:
+      module_path: .
+      metadata_path: metadata.json
+      build_attr: lgx-portable
+      variants: linux-amd64,darwin-arm64
+      require_all_variants: true
+      dispatch_rebuild_index: false
+      prerelease: true
+      install_macos_metal_toolchain: false
+      signing_mode: none
+      skip_if_published: ${{ !inputs.force_build }}
