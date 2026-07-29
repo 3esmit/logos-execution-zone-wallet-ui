@@ -11,6 +11,7 @@
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QTimer>
 #include <QUrl>
@@ -35,6 +36,7 @@ namespace {
     const int MODULE_WARMUP_RETRY_MS = 50;
     const int MODULE_WARMUP_MAX_ATTEMPTS = 100;
     const QString DEFAULT_PROGRAM_OWNER(64, QLatin1Char('0'));
+    const QRegularExpression PROGRAM_OWNER_PATTERN(QStringLiteral("^[0-9a-fA-F]{64}$"));
 
     // Convert a decimal amount string to 32-char hex (16 bytes little-endian)
     // for transfer_public/transfer_private/transfer_private_owned.
@@ -205,6 +207,10 @@ void LEZWalletBackend::finishOpeningWallet()
 {
     setIsWalletOpen(true);
     m_accountModel->replaceFromVariantList(buildEnrichedAccountList());
+    // Public-account initialization is a direct chain query. It must not wait
+    // for the potentially long historical wallet sync, otherwise a freshly
+    // created account has no available initialization action.
+    refreshPublicAccountRegistrationStatuses();
     fetchAndUpdateBlockHeights();
     startChunkedSync();
     refreshSequencerAddr();
@@ -213,6 +219,7 @@ void LEZWalletBackend::finishOpeningWallet()
 void LEZWalletBackend::refreshAccounts()
 {
     m_accountModel->replaceFromVariantList(buildEnrichedAccountList());
+    refreshPublicAccountRegistrationStatuses();
     fetchAndUpdateBlockHeights();
     if (!m_syncing)
         startChunkedSync();
@@ -220,6 +227,7 @@ void LEZWalletBackend::refreshAccounts()
 
 void LEZWalletBackend::refreshBalances()
 {
+    refreshPublicAccountRegistrationStatuses();
     fetchAndUpdateBlockHeights();
     if (!m_syncing)
         startChunkedSync();
@@ -244,6 +252,7 @@ void LEZWalletBackend::syncNextChunk()
         // Sync may have discovered new private accounts (e.g. shielded transfers to a
         // foreign NPK/VPK); re-list so the model picks them up without a restart.
         m_accountModel->replaceFromVariantList(buildEnrichedAccountList());
+        refreshPublicAccountRegistrationStatuses();
         fetchAndUpdateBlockHeights();
         updateBalances();
         return;
@@ -258,6 +267,56 @@ void LEZWalletBackend::syncNextChunk()
     QTimer::singleShot(0, this, &LEZWalletBackend::syncNextChunk);
 }
 
+LEZWalletBackend::PublicAccountRegistrationState
+LEZWalletBackend::publicAccountRegistrationState(const QString& accountId) const
+{
+    const QString rawAccount = m_logos->lez_core.get_account_public(accountId);
+    const QJsonDocument accountDocument = QJsonDocument::fromJson(rawAccount.toUtf8());
+    if (!accountDocument.isObject())
+        return PublicAccountRegistrationState::Unknown;
+
+    const QJsonValue ownerValue = accountDocument.object().value(QStringLiteral("program_owner"));
+    if (!ownerValue.isString())
+        return PublicAccountRegistrationState::Unknown;
+
+    const QString owner = ownerValue.toString();
+    if (!PROGRAM_OWNER_PATTERN.match(owner).hasMatch())
+        return PublicAccountRegistrationState::Unknown;
+
+    return owner == DEFAULT_PROGRAM_OWNER
+        ? PublicAccountRegistrationState::Uninitialized
+        : PublicAccountRegistrationState::Initialized;
+}
+
+void LEZWalletBackend::refreshPublicAccountRegistrationStatuses()
+{
+    if (!m_accountModel)
+        return;
+
+    bool statusUnavailable = false;
+    for (int i = 0; i < m_accountModel->count(); ++i) {
+        const QModelIndex index = m_accountModel->index(i, 0);
+        if (!m_accountModel->data(index, LEZWalletAccountModel::IsPublicRole).toBool())
+            continue;
+
+        const QString accountId = m_accountModel->data(index, LEZWalletAccountModel::AccountIdRole).toString();
+        const PublicAccountRegistrationState state = publicAccountRegistrationState(accountId);
+        m_accountModel->setPublicAccountRegistrationStatus(
+            accountId,
+            state != PublicAccountRegistrationState::Unknown,
+            state == PublicAccountRegistrationState::Uninitialized);
+        statusUnavailable = statusUnavailable || state == PublicAccountRegistrationState::Unknown;
+    }
+
+    if (statusUnavailable && !m_registrationStatusRefreshPending) {
+        m_registrationStatusRefreshPending = true;
+        QTimer::singleShot(3000, this, [this]() {
+            m_registrationStatusRefreshPending = false;
+            refreshPublicAccountRegistrationStatuses();
+        });
+    }
+}
+
 void LEZWalletBackend::updateBalances()
 {
     if (!m_accountModel) return;
@@ -266,18 +325,6 @@ void LEZWalletBackend::updateBalances()
         const QModelIndex idx = m_accountModel->index(i, 0);
         const QString addr = m_accountModel->data(idx, LEZWalletAccountModel::AccountIdRole).toString();
         const bool isPub = m_accountModel->data(idx, LEZWalletAccountModel::IsPublicRole).toBool();
-        if (isPub) {
-            const QString rawAccount = m_logos->lez_core.get_account_public(addr);
-            const QJsonDocument accountDocument = QJsonDocument::fromJson(rawAccount.toUtf8());
-            const bool known = accountDocument.isObject()
-                && accountDocument.object().value(QStringLiteral("program_owner")).isString();
-            const bool needsRegistration = known
-                && accountDocument.object().value(QStringLiteral("program_owner")).toString()
-                    == DEFAULT_PROGRAM_OWNER;
-            m_accountModel->setPublicAccountRegistrationStatus(addr, known, needsRegistration);
-            if (!known)
-                anyFailed = true;
-        }
         const QString bal = getBalance(addr, isPub);
         if (!bal.isEmpty())
             m_accountModel->setBalanceByAccountId(addr, bal);
@@ -374,7 +421,30 @@ QString LEZWalletBackend::registerPublicAccount(QString accountIdHex)
         };
         return QString::fromUtf8(QJsonDocument(result).toJson(QJsonDocument::Compact));
     }
-    return m_logos->lez_core.register_public_account(accountId);
+
+    const PublicAccountRegistrationState state = publicAccountRegistrationState(accountId);
+    if (state == PublicAccountRegistrationState::Unknown) {
+        const QJsonObject result{
+            {QStringLiteral("success"), false},
+            {QStringLiteral("error"), QStringLiteral("Could not verify the public account on chain. Refresh and try again.")},
+        };
+        return QString::fromUtf8(QJsonDocument(result).toJson(QJsonDocument::Compact));
+    }
+    if (state == PublicAccountRegistrationState::Initialized) {
+        const QJsonObject result{
+            {QStringLiteral("success"), false},
+            {QStringLiteral("error"), QStringLiteral("Public account is already initialized on chain.")},
+        };
+        return QString::fromUtf8(QJsonDocument(result).toJson(QJsonDocument::Compact));
+    }
+
+    const QString result = m_logos->lez_core.register_public_account(accountId);
+    const QJsonDocument resultDocument = QJsonDocument::fromJson(result.toUtf8());
+    if (resultDocument.isObject()
+        && resultDocument.object().value(QStringLiteral("success")).toBool()) {
+        QTimer::singleShot(3000, this, &LEZWalletBackend::refreshPublicAccountRegistrationStatuses);
+    }
+    return result;
 }
 
 QString LEZWalletBackend::transferPublic(QString fromHex, QString toHex, QString amountStr)

@@ -127,9 +127,9 @@ ItemDelegate {
                     if (root.registrationSubmitted && root.needsRegistration)
                         return root.registrationResult
                     if (root.registrationStatusKnown && !root.needsRegistration)
-                        return qsTr("Registered on chain")
+                        return qsTr("Initialized on chain")
                     if (root.registrationStatusKnown)
-                        return qsTr("Register before receiving transfers.")
+                        return qsTr("Initialize before receiving transfers.")
                     return qsTr("Checking on-chain status…")
                 }
             }
@@ -140,23 +140,6 @@ ItemDelegate {
                 text: qsTr("Register on chain")
                 onClicked: root.registerRequested(model.accountId ?? "")
             }
-        }
-
-        // Keep the upstream manual-initialize affordance for the exceptional state
-        // where an account is known to be registered but has not yet been claimed.
-        // It is deliberately disjoint from Register on chain: both operations submit
-        // the same authorized LEZ transaction, and exposing both for an unregistered
-        // account would allow duplicate submissions.
-        FeedbackButton {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 32
-            visible: (model.isPublic ?? true)
-                && root.registrationStatusKnown
-                && !root.needsRegistration
-                && !model.isInitialized
-            enabled: !root.initializing
-            text: root.initializing ? qsTr("Initializing…") : qsTr("Initialize")
-            onClicked: root.initializeRequested(model.accountId ?? "")
         }
     }
 }
