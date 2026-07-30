@@ -1,5 +1,6 @@
 #include "LEZWalletBackend.h"
 
+#include <algorithm>
 #include <QAbstractItemModel>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -56,6 +57,21 @@ namespace {
         if (p.startsWith("file://") || p.contains("/"))
             return QUrl::fromUserInput(p).toLocalFile();
         return p;
+    }
+
+    // An account is uninitialized until some program claims it (program_owner goes
+    // from all-zero to that program's ID) — see DEFAULT_PROGRAM_ID in the execution
+    // zone's state machine. Accounts this wallet creates are only ever claimed by the
+    // authenticated-transfer program (via an explicit init or as a side effect of
+    // receiving a transfer to a still-unclaimed account), so "non-zero owner" is
+    // enough to show as initialized without needing that program's ID here.
+    bool accountJsonIsInitialized(const QString& accountJson) {
+        const QJsonDocument doc = QJsonDocument::fromJson(accountJson.toUtf8());
+        if (!doc.isObject())
+            return false;
+        const QString programOwner = doc.object().value(QStringLiteral("program_owner")).toString();
+        return std::any_of(programOwner.cbegin(), programOwner.cend(),
+            [](QChar c) { return c != QLatin1Char('0'); });
     }
 }
 
@@ -165,8 +181,9 @@ QVariantList LEZWalletBackend::buildEnrichedAccountList()
     enriched.reserve(raw.size());
     for (const QVariant& v : raw) {
         QVariantMap map = v.toMap();
-        if (!map.value(QStringLiteral("is_public"), true).toBool()) {
-            const QString accountId = map.value(QStringLiteral("account_id")).toString();
+        const QString accountId = map.value(QStringLiteral("account_id")).toString();
+        const bool isPublic = map.value(QStringLiteral("is_public"), true).toBool();
+        if (!isPublic) {
             const QString keysJson = getPrivateAccountKeys(accountId);
             const QJsonDocument doc = QJsonDocument::fromJson(keysJson.toUtf8());
             if (doc.isObject()) {
@@ -174,6 +191,10 @@ QVariantList LEZWalletBackend::buildEnrichedAccountList()
                 map[QStringLiteral("keys_json")] = keysJson;
             }
         }
+        const QString accountJson = isPublic
+            ? m_logos->lez_core.get_account_public(accountId)
+            : m_logos->lez_core.get_account_private(accountId);
+        map[QStringLiteral("is_initialized")] = accountJsonIsInitialized(accountJson);
         enriched.append(map);
     }
     return enriched;
@@ -249,6 +270,20 @@ void LEZWalletBackend::updateBalances()
             m_accountModel->setBalanceByAccountId(addr, bal);
         else
             anyFailed = true;
+
+        // Initialization is one-way (program_owner never reverts to zero), so once an
+        // account is known initialized there's no need to keep re-checking it here.
+        // Pending accounts get re-checked on every balance refresh so the "Initialize"
+        // tag catches up once the registration tx lands in a block, without requiring
+        // another manual Initialize click.
+        const bool alreadyInitialized = m_accountModel->data(idx, LEZWalletAccountModel::IsInitializedRole).toBool();
+        if (!alreadyInitialized) {
+            const QString accountJson = isPub
+                ? m_logos->lez_core.get_account_public(addr)
+                : m_logos->lez_core.get_account_private(addr);
+            if (accountJsonIsInitialized(accountJson))
+                m_accountModel->setInitializedByAccountId(addr, true);
+        }
     }
     if (anyFailed)
         QTimer::singleShot(3000, this, &LEZWalletBackend::updateBalances);
@@ -303,6 +338,20 @@ QString LEZWalletBackend::getPublicAccountKey(QString accountIdHex)
 QString LEZWalletBackend::getPrivateAccountKeys(QString accountIdHex)
 {
     return m_logos->lez_core.get_private_account_keys(accountIdHex);
+}
+
+QString LEZWalletBackend::initializeAccount(QString accountIdHex)
+{
+    // Public accounts only: public account initialization requires authorization,
+    // so it needs a manual init signed by the owner. Private accounts don't require
+    // authorization to initialize, so they never go through here. Registration is a
+    // plain public tx (like transferPublic, no proof needed), so the generated
+    // accessor's default timeout is fine.
+    // sendTransaction only waits for mempool acceptance, not block inclusion, so the
+    // account is never actually initialized yet by the time this returns — no point
+    // triggering a full (blinking) account-list rebuild here. updateBalances() picks
+    // up the is_initialized flip later, without a full reset, once the tx confirms.
+    return m_logos->lez_core.register_public_account(accountIdHex);
 }
 
 bool LEZWalletBackend::syncToBlock(quint64 blockId)
