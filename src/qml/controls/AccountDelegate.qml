@@ -22,6 +22,9 @@ ItemDelegate {
     property string registrationResult: ""
     property bool registrationResultIsError: false
 
+    signal initializeRequested(string accountId)
+    property bool initializing: false
+
     leftPadding: Theme.spacing.medium
     rightPadding: Theme.spacing.medium
     topPadding: Theme.spacing.medium
@@ -58,6 +61,22 @@ ItemDelegate {
                     text: model.isPublic ? qsTr("Public") : qsTr("Private")
                     font.pixelSize: Theme.typography.secondaryText
                     color: Theme.palette.textSecondary
+                }
+            }
+
+            Rectangle {
+                Layout.preferredWidth: initLabel.implicitWidth + Theme.spacing.small * 2
+                Layout.preferredHeight: initLabel.implicitHeight + 4
+                radius: 4
+                color: Theme.colors.getColor(
+                    model.isInitialized ? Theme.palette.success : Theme.palette.warning, 0.18)
+
+                LogosText {
+                    id: initLabel
+                    anchors.centerIn: parent
+                    text: model.isInitialized ? qsTr("Initialized") : qsTr("Uninitialized")
+                    font.pixelSize: Theme.typography.secondaryText
+                    color: model.isInitialized ? Theme.palette.success : Theme.palette.warning
                 }
             }
 
@@ -101,7 +120,7 @@ ItemDelegate {
                 font.pixelSize: Theme.typography.secondaryText
                 color: root.registrationResultIsError ? Theme.palette.error : Theme.palette.textSecondary
                 text: {
-                    if (root.registrationPending)
+                    if (root.registrationPending || root.initializing)
                         return qsTr("Submitting registration…")
                     if (root.registrationResultIsError)
                         return root.registrationResult
@@ -117,10 +136,27 @@ ItemDelegate {
 
             LogosButton {
                 visible: root.needsRegistration && !root.registrationSubmitted
-                enabled: !root.registrationPending
+                enabled: !root.registrationPending && !root.initializing
                 text: qsTr("Register on chain")
                 onClicked: root.registerRequested(model.accountId ?? "")
             }
+        }
+
+        // Keep the upstream manual-initialize affordance for the exceptional state
+        // where an account is known to be registered but has not yet been claimed.
+        // It is deliberately disjoint from Register on chain: both operations submit
+        // the same authorized LEZ transaction, and exposing both for an unregistered
+        // account would allow duplicate submissions.
+        FeedbackButton {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 32
+            visible: (model.isPublic ?? true)
+                && root.registrationStatusKnown
+                && !root.needsRegistration
+                && !model.isInitialized
+            enabled: !root.initializing
+            text: root.initializing ? qsTr("Initializing…") : qsTr("Initialize")
+            onClicked: root.initializeRequested(model.accountId ?? "")
         }
     }
 }

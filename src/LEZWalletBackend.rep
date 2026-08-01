@@ -14,6 +14,7 @@ class LEZWalletBackend
     SLOT(void refreshBalances())
     SLOT(QString getPublicAccountKey(QString accountIdHex))
     SLOT(QString getPrivateAccountKeys(QString accountIdHex))
+    SLOT(QString initializeAccount(QString accountIdHex))
     SLOT(bool syncToBlock(quint64 blockId))
     SLOT(QString registerPublicAccount(QString accountIdHex))
 
