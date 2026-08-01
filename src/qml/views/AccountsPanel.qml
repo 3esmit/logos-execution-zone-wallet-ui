@@ -19,20 +19,22 @@ Rectangle {
     property bool registrationPending: false
     property string registrationResult: ""
     property bool registrationResultIsError: false
+    property var pendingInitializations: ({})
 
     // --- Public API: signals out ---
-    signal createPublicAccountRequested()
+    signal createPublicAccountRequested(bool initializeOnCreate)
     signal createPrivateAccountRequested()
     signal registerPublicAccountRequested(string accountId)
     signal fetchBalancesRequested()
     signal copyRequested(string text)
+    signal initializeAccountRequested(string accountId)
 
     radius: Theme.spacing.radiusXlarge
     color: Theme.palette.backgroundSecondary
 
     CreateAccountDialog {
         id: createAccountDialog
-        onCreatePublicRequested: root.createPublicAccountRequested()
+        onCreatePublicRequested: (initializeOnCreate) => root.createPublicAccountRequested(initializeOnCreate)
         onCreatePrivateRequested: root.createPrivateAccountRequested()
     }
 
@@ -56,7 +58,7 @@ Rectangle {
 
             Item { Layout.fillWidth: true }
 
-            LogosButton {
+            FeedbackButton {
                 Layout.preferredHeight: 40
                 Layout.preferredWidth: 80
                 text: qsTr("+ Create")
@@ -188,14 +190,16 @@ Rectangle {
                         ? root.registrationResult : ""
                     registrationResultIsError: root.registrationAccountId === (model.accountId ?? "")
                         && root.registrationResultIsError
+                    initializing: root.pendingInitializations[model.accountId] === true
                     onCopyRequested: (text) => root.copyRequested(text)
                     onRegisterRequested: (accountId) => root.registerPublicAccountRequested(accountId)
+                    onInitializeRequested: (accountId) => root.initializeAccountRequested(accountId)
                 }
             }
         }
 
         // Footer: Fetch / Refresh Balances
-        LogosButton {
+        FeedbackButton {
             Layout.fillWidth: true
             text: qsTr("Refresh Balances")
             onClicked: root.fetchBalancesRequested()
