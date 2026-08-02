@@ -2,6 +2,7 @@
 #define LEZ_WALLET_BACKEND_H
 
 #include <QObject>
+#include <QSet>
 #include <QString>
 
 #include "rep_LEZWalletBackend_source.h"
@@ -9,6 +10,7 @@
 #include "LEZAccountFilterModel.h"
 #include "LEZClaimableAccountFilterModel.h"
 #include "LEZWalletAccountModel.h"
+#include "PublicAccountRegistrationStatus.h"
 
 class LogosAPI;
 struct LogosModules;
@@ -60,12 +62,6 @@ private slots:
     void syncNextChunk();
 
 private:
-    enum class PublicAccountRegistrationState {
-        Unknown,
-        Uninitialized,
-        Initialized,
-    };
-
     void persistConfigPath(const QString& path);
     void persistStoragePath(const QString& path);
     void applySequencerAddrToConfig(const QString& configPath, const QString& sequencerAddr);
@@ -73,8 +69,11 @@ private:
     void startChunkedSync();
     QVariantList buildEnrichedAccountList();
 
-    PublicAccountRegistrationState publicAccountRegistrationState(const QString& accountId) const;
+    LezWallet::PublicAccountRegistrationState publicAccountRegistrationState(const QString& accountId) const;
     void refreshPublicAccountRegistrationStatuses();
+    void schedulePublicAccountRegistrationStatusRefresh(
+        bool statusUnavailable,
+        bool submittedRegistrationPending);
     void updateBalances();
     QString getVaultBalance(const QString& accountIdHex);
     void refreshSequencerAddr();
@@ -84,6 +83,8 @@ private:
 
     bool m_syncing = false;
     bool m_registrationStatusRefreshPending = false;
+    int m_registrationStatusRefreshAttempts = 0;
+    QSet<QString> m_pendingPublicAccountRegistrations;
     quint64 m_syncTarget = 0;
     static constexpr quint64 SYNC_CHUNK_SIZE = 100;
 

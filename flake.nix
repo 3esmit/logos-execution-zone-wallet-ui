@@ -8,9 +8,18 @@
   };
 
   outputs = inputs@{ logos-module-builder, ... }:
-    logos-module-builder.lib.mkLogosQmlModule {
+  let
+    module = logos-module-builder.lib.mkLogosQmlModule {
       src = ./.;
       configFile = ./metadata.json;
       flakeInputs = inputs;
+    };
+    unitTests = logos-module-builder.lib.mkLogosModuleTests {
+      src = ./.;
+      testDir = ./tests;
+    };
+  in
+    module // {
+      checks = module.checks // unitTests;
     };
 }

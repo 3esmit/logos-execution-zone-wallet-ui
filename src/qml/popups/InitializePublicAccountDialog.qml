@@ -19,7 +19,7 @@ Popup {
 
     parent: Overlay.overlay
     anchors.centerIn: parent
-    width: Math.min(560, parent ? parent.width - Theme.spacing.large * 2 : 560)
+    width: Math.max(0, Math.min(560, parent ? parent.width - Theme.spacing.large * 2 : 560))
 
     background: Rectangle {
         color: Theme.palette.backgroundSecondary

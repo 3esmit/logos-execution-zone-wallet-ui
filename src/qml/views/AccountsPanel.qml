@@ -186,6 +186,7 @@ Rectangle {
                     Layout.fillWidth: true
                     registrationStatusKnown: model.registrationStatusKnown ?? false
                     needsRegistration: model.needsRegistration ?? false
+                    registrationRetryAllowed: model.registrationRetryAllowed ?? false
                     registrationPending: root.registrationPending
                         && root.registrationAccountId === (model.accountId ?? "")
                     registrationSubmitted: root.registrationAccountId === (model.accountId ?? "")

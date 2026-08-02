@@ -17,6 +17,7 @@ ItemDelegate {
     signal registerRequested(string accountId)
     property bool registrationStatusKnown: false
     property bool needsRegistration: false
+    property bool registrationRetryAllowed: false
     property bool registrationPending: false
     property bool registrationSubmitted: false
     property string registrationResult: ""
@@ -124,8 +125,11 @@ ItemDelegate {
                         return qsTr("Submitting registration…")
                     if (root.registrationResultIsError)
                         return root.registrationResult
-                    if (root.registrationSubmitted && root.needsRegistration)
+                    if (root.registrationSubmitted && root.needsRegistration) {
+                        if (root.registrationRetryAllowed)
+                            return qsTr("Initialization was not confirmed. You can try again.")
                         return root.registrationResult
+                    }
                     if (root.registrationStatusKnown && !root.needsRegistration)
                         return qsTr("Initialized on chain")
                     if (root.registrationStatusKnown)
@@ -135,9 +139,10 @@ ItemDelegate {
             }
 
             LogosButton {
-                visible: root.needsRegistration && !root.registrationSubmitted
+                visible: root.needsRegistration
+                    && (!root.registrationSubmitted || root.registrationRetryAllowed)
                 enabled: !root.registrationPending && !root.initializing
-                text: qsTr("Register on chain")
+                text: qsTr("Initialize account")
                 onClicked: root.registerRequested(model.accountId ?? "")
             }
         }
