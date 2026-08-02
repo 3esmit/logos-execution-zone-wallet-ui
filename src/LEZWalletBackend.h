@@ -71,6 +71,7 @@ private:
 
     LezWallet::PublicAccountRegistrationState publicAccountRegistrationState(const QString& accountId) const;
     void refreshPublicAccountRegistrationStatuses();
+    void reconcilePublicAccountRegistrationRefreshState();
     void schedulePublicAccountRegistrationStatusRefresh(
         bool statusUnavailable,
         bool submittedRegistrationPending);

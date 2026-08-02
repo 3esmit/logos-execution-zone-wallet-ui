@@ -73,6 +73,27 @@ namespace {
         return std::any_of(programOwner.cbegin(), programOwner.cend(),
             [](QChar c) { return c != QLatin1Char('0'); });
     }
+
+    LezWallet::PublicAccountRegistrationState publicAccountRegistrationStateForJson(
+        const QString& rawAccount)
+    {
+        const QJsonDocument accountDocument = QJsonDocument::fromJson(rawAccount.toUtf8());
+        if (!accountDocument.isObject())
+            return LezWallet::PublicAccountRegistrationState::Unknown;
+
+        const QJsonValue ownerValue = accountDocument.object().value(
+            QStringLiteral("program_owner"));
+        if (!ownerValue.isString())
+            return LezWallet::PublicAccountRegistrationState::Unknown;
+
+        const QString owner = ownerValue.toString();
+        if (!PROGRAM_OWNER_PATTERN.match(owner).hasMatch())
+            return LezWallet::PublicAccountRegistrationState::Unknown;
+
+        return owner == DEFAULT_PROGRAM_OWNER
+            ? LezWallet::PublicAccountRegistrationState::Uninitialized
+            : LezWallet::PublicAccountRegistrationState::Initialized;
+    }
 }
 
 LEZWalletBackend::LEZWalletBackend(LogosAPI* logosAPI, QObject* parent)
@@ -171,9 +192,9 @@ void LEZWalletBackend::openIfPathsConfigured(int attempt)
     }
 }
 
-// Tags each private account with the NPK of the key group it belongs to (plus that
-// group's {nullifier_public_key, viewing_public_key} JSON), so the model can section
-// accounts by key group instead of listing them flat. Public accounts are untouched.
+// Tags private accounts with their key-group metadata and carries each public
+// account's authoritative registration state from the same chain read. This lets the
+// model render direct status without immediately re-querying every public account.
 QVariantList LEZWalletBackend::buildEnrichedAccountList()
 {
     QVariantList raw = m_logos->lez_core.list_accounts();
@@ -194,7 +215,16 @@ QVariantList LEZWalletBackend::buildEnrichedAccountList()
         const QString accountJson = isPublic
             ? m_logos->lez_core.get_account_public(accountId)
             : m_logos->lez_core.get_account_private(accountId);
-        map[QStringLiteral("is_initialized")] = accountJsonIsInitialized(accountJson);
+        if (isPublic) {
+            const LezWallet::PublicAccountRegistrationStatus status =
+                LezWallet::registrationStatusFor(
+                    publicAccountRegistrationStateForJson(accountJson));
+            map[QStringLiteral("registration_status_known")] = status.known;
+            map[QStringLiteral("needs_registration")] = status.needsInitialization;
+            map[QStringLiteral("is_initialized")] = status.initialized;
+        } else {
+            map[QStringLiteral("is_initialized")] = accountJsonIsInitialized(accountJson);
+        }
         enriched.append(map);
     }
     return enriched;
@@ -204,10 +234,10 @@ void LEZWalletBackend::finishOpeningWallet()
 {
     setIsWalletOpen(true);
     m_accountModel->replaceFromVariantList(buildEnrichedAccountList());
-    // Public-account initialization is a direct chain query. It must not wait
-    // for the potentially long historical wallet sync, otherwise a freshly
-    // created account has no available initialization action.
-    refreshPublicAccountRegistrationStatuses();
+    // The enriched list carries each public account's direct chain status, so it
+    // is available before the potentially long historical wallet sync without
+    // issuing a second get_account_public call for every account.
+    reconcilePublicAccountRegistrationRefreshState();
     fetchAndUpdateBlockHeights();
     startChunkedSync();
     refreshSequencerAddr();
@@ -218,7 +248,7 @@ void LEZWalletBackend::refreshAccounts()
     if (m_pendingPublicAccountRegistrations.isEmpty())
         m_registrationStatusRefreshAttempts = 0;
     m_accountModel->replaceFromVariantList(buildEnrichedAccountList());
-    refreshPublicAccountRegistrationStatuses();
+    reconcilePublicAccountRegistrationRefreshState();
     fetchAndUpdateBlockHeights();
     if (!m_syncing)
         startChunkedSync();
@@ -253,7 +283,7 @@ void LEZWalletBackend::syncNextChunk()
         // Sync may have discovered new private accounts (e.g. shielded transfers to a
         // foreign NPK/VPK); re-list so the model picks them up without a restart.
         m_accountModel->replaceFromVariantList(buildEnrichedAccountList());
-        refreshPublicAccountRegistrationStatuses();
+        reconcilePublicAccountRegistrationRefreshState();
         fetchAndUpdateBlockHeights();
         updateBalances();
         return;
@@ -272,24 +302,38 @@ LezWallet::PublicAccountRegistrationState
 LEZWalletBackend::publicAccountRegistrationState(const QString& accountId) const
 {
     const QString rawAccount = m_logos->lez_core.get_account_public(accountId);
-    const QJsonDocument accountDocument = QJsonDocument::fromJson(rawAccount.toUtf8());
-    if (!accountDocument.isObject())
-        return LezWallet::PublicAccountRegistrationState::Unknown;
-
-    const QJsonValue ownerValue = accountDocument.object().value(QStringLiteral("program_owner"));
-    if (!ownerValue.isString())
-        return LezWallet::PublicAccountRegistrationState::Unknown;
-
-    const QString owner = ownerValue.toString();
-    if (!PROGRAM_OWNER_PATTERN.match(owner).hasMatch())
-        return LezWallet::PublicAccountRegistrationState::Unknown;
-
-    return owner == DEFAULT_PROGRAM_OWNER
-        ? LezWallet::PublicAccountRegistrationState::Uninitialized
-        : LezWallet::PublicAccountRegistrationState::Initialized;
+    return publicAccountRegistrationStateForJson(rawAccount);
 }
 
 void LEZWalletBackend::refreshPublicAccountRegistrationStatuses()
+{
+    if (!m_accountModel)
+        return;
+
+    for (int i = 0; i < m_accountModel->count(); ++i) {
+        const QModelIndex index = m_accountModel->index(i, 0);
+        if (!m_accountModel->data(index, LEZWalletAccountModel::IsPublicRole).toBool())
+            continue;
+
+        const QString accountId = m_accountModel->data(index, LEZWalletAccountModel::AccountIdRole).toString();
+        const LezWallet::PublicAccountRegistrationState state = publicAccountRegistrationState(accountId);
+        const LezWallet::PublicAccountRegistrationStatus status =
+            LezWallet::registrationStatusFor(state);
+        m_accountModel->setPublicAccountRegistrationStatus(
+            accountId,
+            status.known,
+            status.needsInitialization);
+        if (status.known) {
+            m_accountModel->setInitializedByAccountId(
+                accountId,
+                status.initialized);
+        }
+    }
+
+    reconcilePublicAccountRegistrationRefreshState();
+}
+
+void LEZWalletBackend::reconcilePublicAccountRegistrationRefreshState()
 {
     if (!m_accountModel)
         return;
@@ -302,27 +346,23 @@ void LEZWalletBackend::refreshPublicAccountRegistrationStatuses()
         if (!m_accountModel->data(index, LEZWalletAccountModel::IsPublicRole).toBool())
             continue;
 
-        const QString accountId = m_accountModel->data(index, LEZWalletAccountModel::AccountIdRole).toString();
+        const QString accountId = m_accountModel->data(
+            index,
+            LEZWalletAccountModel::AccountIdRole).toString();
+        const bool statusKnown = m_accountModel->data(
+            index,
+            LEZWalletAccountModel::RegistrationStatusKnownRole).toBool();
+        const bool initialized = m_accountModel->data(
+            index,
+            LEZWalletAccountModel::IsInitializedRole).toBool();
         publicAccountIds.insert(accountId);
-        const LezWallet::PublicAccountRegistrationState state = publicAccountRegistrationState(accountId);
-        const LezWallet::PublicAccountRegistrationStatus status =
-            LezWallet::registrationStatusFor(state);
-        m_accountModel->setPublicAccountRegistrationStatus(
-            accountId,
-            status.known,
-            status.needsInitialization);
-        if (status.known) {
-            m_accountModel->setInitializedByAccountId(
-                accountId,
-                status.initialized);
-            if (status.initialized)
-                m_accountModel->setRegistrationRetryAllowed(accountId, false);
-        }
-        statusUnavailable = statusUnavailable
-            || state == LezWallet::PublicAccountRegistrationState::Unknown;
+        statusUnavailable = statusUnavailable || !statusKnown;
+
+        if (statusKnown && initialized)
+            m_accountModel->setRegistrationRetryAllowed(accountId, false);
 
         if (m_pendingPublicAccountRegistrations.contains(accountId)) {
-            if (status.initialized)
+            if (statusKnown && initialized)
                 m_pendingPublicAccountRegistrations.remove(accountId);
             else
                 submittedRegistrationPending = true;

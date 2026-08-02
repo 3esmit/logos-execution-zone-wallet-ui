@@ -75,11 +75,20 @@ void LEZWalletAccountModel::replaceFromVariantList(const QVariantList& list)
         LEZWalletAccountEntry e;
         e.balance = QString();
         e.name = QString();
+        bool registrationStatusProvided = false;
         if (v.type() == QVariant::Map) {
             const QVariantMap map = v.toMap();
             e.accountId = map.value(QStringLiteral("account_id")).toString();
             e.isPublic = map.value(QStringLiteral("is_public"), true).toBool();
             e.isInitialized = map.value(QStringLiteral("is_initialized"), false).toBool();
+            registrationStatusProvided = e.isPublic && map.contains(
+                QStringLiteral("registration_status_known"));
+            if (registrationStatusProvided) {
+                e.registrationStatusKnown = map.value(
+                    QStringLiteral("registration_status_known")).toBool();
+                e.needsRegistration = map.value(
+                    QStringLiteral("needs_registration"), false).toBool();
+            }
             if (e.isPublic) {
                 e.sectionKey = PublicSectionKey;
             } else {
@@ -95,8 +104,10 @@ void LEZWalletAccountModel::replaceFromVariantList(const QVariantList& list)
         if (previous != previousEntries.end()) {
             e.balance = previous->balance;
             e.vaultBalance = previous->vaultBalance;
-            e.registrationStatusKnown = previous->registrationStatusKnown;
-            e.needsRegistration = previous->needsRegistration;
+            if (!registrationStatusProvided) {
+                e.registrationStatusKnown = previous->registrationStatusKnown;
+                e.needsRegistration = previous->needsRegistration;
+            }
             e.registrationRetryAllowed = previous->registrationRetryAllowed;
         }
         m_entries.append(e);
