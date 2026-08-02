@@ -84,8 +84,13 @@ LEZWalletBackend::LEZWalletBackend(LogosAPI* logosAPI, QObject* parent)
       m_logosAPI(logosAPI ? logosAPI : new LogosAPI("lez_wallet_ui", this)),
       m_logos(new LogosModules(m_logosAPI))
 {
+    // Both feed the transfer/withdraw "from"/"to" account-picker combo boxes, where an
+    // uninitialized account isn't a usable sender or recipient — unlike m_accountModel
+    // (unfiltered), which AccountsPanel needs to keep showing them on for initialization.
+    m_filteredAccountModel->setOnlyInitialized(true);
     m_filteredAccountModel->setSourceModel(m_accountModel);
     m_privateAccountModel->setFilterByPublic(false);
+    m_privateAccountModel->setOnlyInitialized(true);
     m_privateAccountModel->setSourceModel(m_accountModel);
     m_claimableAccountModel->setSourceModel(m_accountModel);
 
@@ -195,6 +200,9 @@ QVariantList LEZWalletBackend::buildEnrichedAccountList()
             ? m_logos->lez_core.get_account_public(accountId)
             : m_logos->lez_core.get_account_private(accountId);
         map[QStringLiteral("is_initialized")] = accountJsonIsInitialized(accountJson);
+        const QStringList labels = m_logos->lez_core.get_all_labels_for_account(accountId, !isPublic);
+        if (!labels.isEmpty())
+            map[QStringLiteral("name")] = labels.join(QStringLiteral(", "));
         enriched.append(map);
     }
     return enriched;
@@ -540,4 +548,23 @@ void LEZWalletBackend::copyToClipboard(QString text)
 {
     if (QGuiApplication::clipboard())
         QGuiApplication::clipboard()->setText(text);
+}
+
+bool LEZWalletBackend::checkLabelAvailable(QString label)
+{
+    return m_logos->lez_core.check_label_available(label.trimmed());
+}
+
+QString LEZWalletBackend::addLabel(QString label, QString accountIdHex, bool isPublic)
+{
+    const QString trimmedLabel = label.trimmed();
+    if (trimmedLabel.isEmpty())
+        return QStringLiteral("Error: Label cannot be empty.");
+
+    const int err = m_logos->lez_core.add_label(trimmedLabel, accountIdHex.trimmed(), !isPublic);
+    if (err != WALLET_FFI_SUCCESS)
+        return QStringLiteral("Error: wallet FFI error %1").arg(err);
+
+    refreshAccounts();
+    return QString();
 }
