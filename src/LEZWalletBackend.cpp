@@ -391,21 +391,28 @@ void LEZWalletBackend::reconcilePublicAccountRegistrationRefreshState()
 
 void LEZWalletBackend::schedulePublicAccountRegistrationStatusRefresh(
     const bool statusUnavailable,
-    const bool submittedRegistrationPending)
+    const bool submittedRegistrationPending,
+    const bool replacePendingRefresh)
 {
-    if (m_registrationStatusRefreshPending
-        || !LezWallet::shouldRetryRegistrationStatus(
+    if (!LezWallet::shouldScheduleRegistrationStatusRefresh(
             statusUnavailable,
             submittedRegistrationPending,
-            m_registrationStatusRefreshAttempts)) {
+            m_registrationStatusRefreshAttempts,
+            m_registrationStatusRefreshPending,
+            replacePendingRefresh)) {
         return;
     }
 
     const int delay = LezWallet::registrationStatusRefreshDelayMs(
         m_registrationStatusRefreshAttempts);
+    // A submitted registration takes precedence over a stale unknown-status
+    // retry. The generation keeps the superseded singleShot inert when it fires.
+    const quint64 refreshGeneration = ++m_registrationStatusRefreshGeneration;
     ++m_registrationStatusRefreshAttempts;
     m_registrationStatusRefreshPending = true;
-    QTimer::singleShot(delay, this, [this]() {
+    QTimer::singleShot(delay, this, [this, refreshGeneration]() {
+        if (refreshGeneration != m_registrationStatusRefreshGeneration)
+            return;
         m_registrationStatusRefreshPending = false;
         refreshPublicAccountRegistrationStatuses();
     });
@@ -539,7 +546,7 @@ QString LEZWalletBackend::registerPublicAccount(QString accountIdHex)
         m_pendingPublicAccountRegistrations.insert(accountId);
         m_accountModel->setRegistrationRetryAllowed(accountId, false);
         m_registrationStatusRefreshAttempts = 0;
-        schedulePublicAccountRegistrationStatusRefresh(false, true);
+        schedulePublicAccountRegistrationStatusRefresh(false, true, true);
     }
     return result;
 }

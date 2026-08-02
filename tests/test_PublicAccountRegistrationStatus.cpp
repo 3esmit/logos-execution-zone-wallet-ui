@@ -41,6 +41,23 @@ LOGOS_TEST(registration_status_retry_is_bounded_and_backed_off) {
         false,
         true,
         LezWallet::RegistrationStatusRefreshMaxAttempts));
+    LOGOS_ASSERT_FALSE(LezWallet::shouldScheduleRegistrationStatusRefresh(
+        false,
+        true,
+        0,
+        true));
+    LOGOS_ASSERT_TRUE(LezWallet::shouldScheduleRegistrationStatusRefresh(
+        false,
+        true,
+        0,
+        true,
+        true));
+    LOGOS_ASSERT_FALSE(LezWallet::shouldScheduleRegistrationStatusRefresh(
+        false,
+        true,
+        LezWallet::RegistrationStatusRefreshMaxAttempts,
+        true,
+        true));
 
     LOGOS_ASSERT_EQ(LezWallet::registrationStatusRefreshDelayMs(0), 3000);
     LOGOS_ASSERT_EQ(LezWallet::registrationStatusRefreshDelayMs(1), 6000);

@@ -42,6 +42,20 @@ constexpr bool shouldRetryRegistrationStatus(
         && completedAttempts < RegistrationStatusRefreshMaxAttempts;
 }
 
+constexpr bool shouldScheduleRegistrationStatusRefresh(
+    const bool statusUnavailable,
+    const bool submittedRegistrationPending,
+    const int completedAttempts,
+    const bool refreshAlreadyPending,
+    const bool replacePendingRefresh = false)
+{
+    return shouldRetryRegistrationStatus(
+               statusUnavailable,
+               submittedRegistrationPending,
+               completedAttempts)
+        && (!refreshAlreadyPending || replacePendingRefresh);
+}
+
 constexpr int registrationStatusRefreshDelayMs(const int completedAttempts)
 {
     int delay = RegistrationStatusRefreshInitialDelayMs;

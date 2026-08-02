@@ -74,7 +74,8 @@ private:
     void reconcilePublicAccountRegistrationRefreshState();
     void schedulePublicAccountRegistrationStatusRefresh(
         bool statusUnavailable,
-        bool submittedRegistrationPending);
+        bool submittedRegistrationPending,
+        bool replacePendingRefresh = false);
     void updateBalances();
     QString getVaultBalance(const QString& accountIdHex);
     void refreshSequencerAddr();
@@ -85,6 +86,7 @@ private:
     bool m_syncing = false;
     bool m_registrationStatusRefreshPending = false;
     int m_registrationStatusRefreshAttempts = 0;
+    quint64 m_registrationStatusRefreshGeneration = 0;
     QSet<QString> m_pendingPublicAccountRegistrations;
     quint64 m_syncTarget = 0;
     static constexpr quint64 SYNC_CHUNK_SIZE = 100;
