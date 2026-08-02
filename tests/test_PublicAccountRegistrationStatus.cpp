@@ -132,3 +132,30 @@ LOGOS_TEST(enriched_public_account_status_overrides_cached_status) {
         model.index(0, 0),
         LEZWalletAccountModel::IsInitializedRole).toBool());
 }
+
+LOGOS_TEST(public_initialization_confirmation_clears_registration_roles) {
+    LEZWalletAccountModel model;
+    const QString accountId(64, QLatin1Char('c'));
+    const QVariantMap account{
+        {QStringLiteral("account_id"), accountId},
+        {QStringLiteral("is_public"), true},
+        {QStringLiteral("registration_status_known"), true},
+        {QStringLiteral("needs_registration"), true},
+        {QStringLiteral("is_initialized"), false},
+    };
+    model.replaceFromVariantList(QVariantList{account});
+
+    model.setPublicAccountRegistrationStatus(accountId, true, false);
+    model.setInitializedByAccountId(accountId, true);
+
+    const QModelIndex accountIndex = model.index(0, 0);
+    LOGOS_ASSERT_TRUE(model.data(
+        accountIndex,
+        LEZWalletAccountModel::RegistrationStatusKnownRole).toBool());
+    LOGOS_ASSERT_FALSE(model.data(
+        accountIndex,
+        LEZWalletAccountModel::NeedsRegistrationRole).toBool());
+    LOGOS_ASSERT_TRUE(model.data(
+        accountIndex,
+        LEZWalletAccountModel::IsInitializedRole).toBool());
+}

@@ -434,18 +434,32 @@ void LEZWalletBackend::updateBalances()
 
         // Initialization is one-way (program_owner never reverts to zero), so once an
         // account is known initialized there's no need to keep re-checking it here.
-        // Pending accounts get re-checked on every balance refresh so the "Initialize"
-        // tag catches up once the registration tx lands in a block, without requiring
-        // another manual Initialize click.
+        // Keep the public registration roles in sync with this direct chain read so
+        // an account claimed by another transaction cannot retain an Initialize CTA.
         const bool alreadyInitialized = m_accountModel->data(idx, LEZWalletAccountModel::IsInitializedRole).toBool();
         if (!alreadyInitialized) {
             const QString accountJson = isPub
                 ? m_logos->lez_core.get_account_public(addr)
                 : m_logos->lez_core.get_account_private(addr);
-            if (accountJsonIsInitialized(accountJson))
+            if (isPub) {
+                const LezWallet::PublicAccountRegistrationStatus status =
+                    LezWallet::registrationStatusFor(
+                        publicAccountRegistrationStateForJson(accountJson));
+                if (status.known) {
+                    m_accountModel->setPublicAccountRegistrationStatus(
+                        addr,
+                        true,
+                        status.needsInitialization);
+                    m_accountModel->setInitializedByAccountId(addr, status.initialized);
+                    if (status.initialized)
+                        m_accountModel->setRegistrationRetryAllowed(addr, false);
+                }
+            } else if (accountJsonIsInitialized(accountJson)) {
                 m_accountModel->setInitializedByAccountId(addr, true);
+            }
         }
     }
+    reconcilePublicAccountRegistrationRefreshState();
     if (anyFailed)
         QTimer::singleShot(3000, this, &LEZWalletBackend::updateBalances);
     else
