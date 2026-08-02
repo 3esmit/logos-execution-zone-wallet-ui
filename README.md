@@ -36,8 +36,8 @@ The standalone app starts Logos Core, loads `capability_module` and the `lez_wal
 ### In Basecamp
 
 ```bash
-# Build LGX
-nix build .#lgx
+# Build a portable LGX
+nix build .#lgx-portable
 
 # Install into Basecamp's plugin directory
 lgpm --ui-plugins-dir ~/Library/Application\ Support/Logos/LogosBasecampDev/plugins \
@@ -54,7 +54,8 @@ ws bundle logos-execution-zone-wallet-ui --auto-local
 
 ```bash
 nix build            # default — combined plugin + QML output
-nix build .#lgx      # .lgx package for distribution
+nix build .#lgx      # development .lgx package (linux-amd64-dev)
+nix build .#lgx-portable  # portable .lgx package for Basecamp/distribution
 nix build .#install  # lgpm-installed output (modules/ + plugins/)
 nix run              # standalone app with wallet module
 nix develop          # enter development shell
