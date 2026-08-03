@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSettings>
@@ -57,6 +58,13 @@ namespace {
         if (p.startsWith("file://") || p.contains("/"))
             return QUrl::fromUserInput(p).toLocalFile();
         return p;
+    }
+
+    // lez_core has no UI-facing concept of a statistics file; derive one deterministically
+    // next to the storage file so onboarding doesn't need a third path picker.
+    QString statisticsPathFor(const QString& localStoragePath) {
+        const QFileInfo info(localStoragePath);
+        return info.absolutePath() + QStringLiteral("/statistics.json");
     }
 
     // An account is uninitialized until some program claims it (program_owner goes
@@ -166,7 +174,7 @@ void LEZWalletBackend::openIfPathsConfigured(int attempt)
 
     qDebug() << "LEZWalletBackend: opening wallet with config" << configPath()
              << "storage" << storagePath();
-    int err = m_logos->lez_core.open(configPath(), storagePath());
+    int err = m_logos->lez_core.open(configPath(), storagePath(), statisticsPathFor(storagePath()));
     if (err == WALLET_FFI_SUCCESS) {
         qDebug() << "LEZWalletBackend: wallet opened successfully";
         finishOpeningWallet();
@@ -501,7 +509,10 @@ void LEZWalletBackend::applySequencerAddrToConfig(const QString& configPath, con
         obj[QStringLiteral("seq_poll_max_retries")]    = 10;
         obj[QStringLiteral("seq_block_poll_max_amount")] = 100;
     }
-    obj[QStringLiteral("sequencer_addr")] = sequencerAddr;
+    QJsonObject sequencerEntry;
+    sequencerEntry[QStringLiteral("sequencer_addr")] = sequencerAddr;
+    sequencerEntry[QStringLiteral("basic_auth")] = QJsonValue::Null;
+    obj[QStringLiteral("sequencers")] = QJsonArray{ sequencerEntry };
 
     QDir().mkpath(QFileInfo(configPath).absolutePath());
     if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
@@ -517,7 +528,7 @@ QString LEZWalletBackend::createNew(QString configPath, QString storagePath, QSt
     // user pointed us at (e.g. from the setup screen), not a request to
     // overwrite it. Try to load it instead of blindly creating a new one.
     if (QFile::exists(localConfigPath) && QFile::exists(localStoragePath)) {
-        int err = m_logos->lez_core.open(localConfigPath, localStoragePath);
+        int err = m_logos->lez_core.open(localConfigPath, localStoragePath, statisticsPathFor(localStoragePath));
         if (err != WALLET_FFI_SUCCESS) {
             return QStringLiteral(
                 "Could not load the wallet at the selected paths. Pick "
@@ -534,7 +545,7 @@ QString LEZWalletBackend::createNew(QString configPath, QString storagePath, QSt
         applySequencerAddrToConfig(localConfigPath, sequencerAddr);
 
     const QString mnemonic = m_logos->lez_core.create_new(
-        localConfigPath, localStoragePath, password);
+        localConfigPath, localStoragePath, statisticsPathFor(localStoragePath), password);
     if (mnemonic.isEmpty())
         return QStringLiteral("Failed to create wallet. Check paths and try again.");
 
