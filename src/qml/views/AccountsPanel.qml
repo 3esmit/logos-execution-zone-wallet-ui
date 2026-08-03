@@ -38,6 +38,11 @@ Rectangle {
         onCreatePrivateRequested: root.createPrivateAccountRequested()
     }
 
+    InitializePublicAccountDialog {
+        id: initializePublicAccountDialog
+        onInitializeConfirmed: (accountId) => root.registerPublicAccountRequested(accountId)
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Theme.spacing.large
@@ -181,6 +186,7 @@ Rectangle {
                     Layout.fillWidth: true
                     registrationStatusKnown: model.registrationStatusKnown ?? false
                     needsRegistration: model.needsRegistration ?? false
+                    registrationRetryAllowed: model.registrationRetryAllowed ?? false
                     registrationPending: root.registrationPending
                         && root.registrationAccountId === (model.accountId ?? "")
                     registrationSubmitted: root.registrationAccountId === (model.accountId ?? "")
@@ -192,8 +198,10 @@ Rectangle {
                         && root.registrationResultIsError
                     initializing: root.pendingInitializations[model.accountId] === true
                     onCopyRequested: (text) => root.copyRequested(text)
-                    onRegisterRequested: (accountId) => root.registerPublicAccountRequested(accountId)
-                    onInitializeRequested: (accountId) => root.initializeAccountRequested(accountId)
+                    onRegisterRequested: (accountId) => {
+                        initializePublicAccountDialog.accountId = accountId
+                        initializePublicAccountDialog.open()
+                    }
                 }
             }
         }

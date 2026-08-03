@@ -17,6 +17,7 @@ ItemDelegate {
     signal registerRequested(string accountId)
     property bool registrationStatusKnown: false
     property bool needsRegistration: false
+    property bool registrationRetryAllowed: false
     property bool registrationPending: false
     property bool registrationSubmitted: false
     property string registrationResult: ""
@@ -124,39 +125,26 @@ ItemDelegate {
                         return qsTr("Submitting registration…")
                     if (root.registrationResultIsError)
                         return root.registrationResult
-                    if (root.registrationSubmitted && root.needsRegistration)
+                    if (root.registrationSubmitted && root.needsRegistration) {
+                        if (root.registrationRetryAllowed)
+                            return qsTr("Initialization was not confirmed. You can try again.")
                         return root.registrationResult
+                    }
                     if (root.registrationStatusKnown && !root.needsRegistration)
-                        return qsTr("Registered on chain")
+                        return qsTr("Initialized on chain")
                     if (root.registrationStatusKnown)
-                        return qsTr("Register before receiving transfers.")
+                        return qsTr("Initialize before receiving transfers.")
                     return qsTr("Checking on-chain status…")
                 }
             }
 
             LogosButton {
-                visible: root.needsRegistration && !root.registrationSubmitted
+                visible: root.needsRegistration
+                    && (!root.registrationSubmitted || root.registrationRetryAllowed)
                 enabled: !root.registrationPending && !root.initializing
-                text: qsTr("Register on chain")
+                text: qsTr("Initialize account")
                 onClicked: root.registerRequested(model.accountId ?? "")
             }
-        }
-
-        // Keep the upstream manual-initialize affordance for the exceptional state
-        // where an account is known to be registered but has not yet been claimed.
-        // It is deliberately disjoint from Register on chain: both operations submit
-        // the same authorized LEZ transaction, and exposing both for an unregistered
-        // account would allow duplicate submissions.
-        FeedbackButton {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 32
-            visible: (model.isPublic ?? true)
-                && root.registrationStatusKnown
-                && !root.needsRegistration
-                && !model.isInitialized
-            enabled: !root.initializing
-            text: root.initializing ? qsTr("Initializing…") : qsTr("Initialize")
-            onClicked: root.initializeRequested(model.accountId ?? "")
         }
     }
 }

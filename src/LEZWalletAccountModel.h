@@ -18,12 +18,13 @@ struct LEZWalletAccountEntry {
     bool isPublic = true;
     bool registrationStatusKnown = false;
     bool needsRegistration = false;
+    bool registrationRetryAllowed = false;
     QString sectionKey;
     QString keysJson; // {nullifier_public_key, viewing_public_key} shared by the whole section; private only
     bool isFirstInGroup = false; // QML renders the section header above rows where this is true
-    // Whether some program (in practice, the authenticated-transfer program) has claimed
-    // this account yet. Defaults to false (shown as needing init) so an account whose
-    // state we failed to enrich isn't silently mistaken for a usable one.
+    // Whether some program has claimed this account yet. Defaults to false (shown as
+    // needing initialization) so an account whose state we failed to enrich is not
+    // silently mistaken for a usable one.
     bool isInitialized = false;
 };
 
@@ -46,7 +47,8 @@ public:
         SectionKeyRole,
         KeysJsonRole,
         IsFirstInGroupRole,
-        IsInitializedRole
+        IsInitializedRole,
+        RegistrationRetryAllowedRole
     };
     Q_ENUM(Role)
 
@@ -61,6 +63,7 @@ public:
     void setVaultBalanceByAccountId(const QString& accountId, const QString& vaultBalance);
     void setPublicAccountRegistrationStatus(const QString& accountId, bool known, bool needsRegistration);
     void setInitializedByAccountId(const QString& accountId, bool isInitialized);
+    void setRegistrationRetryAllowed(const QString& accountId, bool allowed);
     int count() const { return m_entries.size(); }
 
     // Authoritative isPublic lookup by account ID — used to validate/derive the flag

@@ -2,6 +2,7 @@
 #define LEZ_WALLET_BACKEND_H
 
 #include <QObject>
+#include <QSet>
 #include <QString>
 
 #include "rep_LEZWalletBackend_source.h"
@@ -9,6 +10,7 @@
 #include "LEZAccountFilterModel.h"
 #include "LEZClaimableAccountFilterModel.h"
 #include "LEZWalletAccountModel.h"
+#include "PublicAccountRegistrationStatus.h"
 
 class LogosAPI;
 struct LogosModules;
@@ -67,6 +69,13 @@ private:
     void startChunkedSync();
     QVariantList buildEnrichedAccountList();
 
+    LezWallet::PublicAccountRegistrationState publicAccountRegistrationState(const QString& accountId) const;
+    void refreshPublicAccountRegistrationStatuses();
+    void reconcilePublicAccountRegistrationRefreshState();
+    void schedulePublicAccountRegistrationStatusRefresh(
+        bool statusUnavailable,
+        bool submittedRegistrationPending,
+        bool replacePendingRefresh = false);
     void updateBalances();
     QString getVaultBalance(const QString& accountIdHex);
     void refreshSequencerAddr();
@@ -75,6 +84,10 @@ private:
     void finishOpeningWallet();
 
     bool m_syncing = false;
+    bool m_registrationStatusRefreshPending = false;
+    int m_registrationStatusRefreshAttempts = 0;
+    quint64 m_registrationStatusRefreshGeneration = 0;
+    QSet<QString> m_pendingPublicAccountRegistrations;
     quint64 m_syncTarget = 0;
     static constexpr quint64 SYNC_CHUNK_SIZE = 100;
 
