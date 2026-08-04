@@ -29,7 +29,6 @@ Rectangle {
     signal bridgeWithdrawRequested(string fromAccountId, string bedrockAccountPkHex, string amount)
     signal vaultClaimRequested(string fromAccountId, bool isPublic, string amount)
     signal refreshClaimableDepositsRequested()
-    signal copyRequested(string copyText)
 
     radius: Theme.spacing.radiusXlarge
     color: Theme.palette.backgroundSecondary
@@ -76,7 +75,6 @@ Rectangle {
                 onTransferShieldedRequested: (fromId, toKeysJsonOrAddress, amount) => root.transferShieldedRequested(fromId, toKeysJsonOrAddress, amount)
                 onTransferShieldedOwnedRequested: (fromId, toAccountId, amount) => root.transferShieldedOwnedRequested(fromId, toAccountId, amount)
                 onTransferDeshieldedRequested: (fromId, toAccountId, amount) => root.transferDeshieldedRequested(fromId, toAccountId, amount)
-                onCopyRequested: (copyText) => root.copyRequested(copyText)
             }
 
             BridgePanel {
@@ -87,7 +85,6 @@ Rectangle {
                 onBridgeWithdrawRequested: (fromId, bedrockAccountPkHex, amount) => root.bridgeWithdrawRequested(fromId, bedrockAccountPkHex, amount)
                 onVaultClaimRequested: (fromId, isPublic, amount) => root.vaultClaimRequested(fromId, isPublic, amount)
                 onRefreshClaimableDepositsRequested: root.refreshClaimableDepositsRequested()
-                onCopyRequested: (copyText) => root.copyRequested(copyText)
             }
         }
 
@@ -126,10 +123,8 @@ Rectangle {
                 elide: Text.ElideMiddle
             }
             LogosCopyButton {
-                Layout.alignment: Qt.AlignRight
-                Layout.preferredHeight: 40
-                Layout.preferredWidth: 40
-                onCopyText: root.copyRequested(root.transferTxHash || root.transferResult)
+                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                value: root.transferTxHash || root.transferResult
                 visible: resultText.text
             }
         }

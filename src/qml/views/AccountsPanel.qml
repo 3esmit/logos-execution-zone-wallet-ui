@@ -22,7 +22,6 @@ Rectangle {
     signal createPublicAccountRequested(bool initializeOnCreate)
     signal createPrivateAccountRequested()
     signal fetchBalancesRequested()
-    signal copyRequested(string text)
     signal initializeAccountRequested(string accountId)
     signal labelRequested(string accountId, bool isPublic)
 
@@ -255,17 +254,14 @@ Rectangle {
                     }
 
                     LogosCopyButton {
-                        Layout.preferredHeight: 32
-                        Layout.preferredWidth: 32
-                        icon.color: Theme.palette.textMuted
-                        onCopyText: root.copyRequested(model.keysJson ?? "")
+                        Layout.alignment: Qt.AlignVCenter
+                        value: model.keysJson ?? ""
                     }
                 }
 
                 AccountDelegate {
                     Layout.fillWidth: true
                     initializing: root.pendingInitializations[model.accountId] === true
-                    onCopyRequested: (text) => root.copyRequested(text)
                     onInitializeRequested: (accountId) => root.initializeAccountRequested(accountId)
                     onLabelRequested: (accountId, isPublic) => root.labelRequested(accountId, isPublic)
                 }

@@ -106,12 +106,6 @@ Rectangle {
 
     color: Theme.palette.background
 
-    // Used as a clipboard helper — TextEdit.copy() works in the GUI process.
-    TextEdit {
-        id: clipHelper
-        visible: false
-    }
-
     SetLabelDialog {
         id: setLabelDialog
 
@@ -330,11 +324,6 @@ Rectangle {
                 onRefreshClaimableDepositsRequested: {
                     if (!backend) return
                     backend.refreshVaultBalances()  // void slot, fire-and-forget
-                }
-                onCopyRequested: (copyText) => {
-                    clipHelper.text = copyText
-                    clipHelper.selectAll()
-                    clipHelper.copy()
                 }
                 onInitializeAccountRequested: (accountId) => dashboardView.initializeAccount(accountId)
                 onLabelRequested: (accountId, isPublic) => {

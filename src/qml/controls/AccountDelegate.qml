@@ -9,15 +9,11 @@ import "../Base58.js" as Base58
 ItemDelegate {
     id: root
 
-    // Emitted when the user clicks the copy icon. The parent connects this
-    // to backend.copyToClipboard(...) — AccountDelegate doesn't reach into
-    // the global QML scope for `backend` since it now lives behind the
-    // logos.module() bridge in the parent view.
-    signal copyRequested(string text)
-
     // Emitted when the user clicks "Initialize" on an uninitialized account. The
-    // parent wires this to backend.initializeAccount(...) for the same reason as
-    // copyRequested above. Public-only: public account initialization requires
+    // parent wires this to backend.initializeAccount(...) — AccountDelegate doesn't
+    // reach into the global QML scope for `backend` since it now lives behind the
+    // logos.module() bridge in the parent view. Public-only: public account
+    // initialization requires
     // authorization, so it requires a manual init signed by the owner. Private
     // accounts don't need authorization to initialize, so they never need this button.
     signal initializeRequested(string accountId)
@@ -134,11 +130,9 @@ ItemDelegate {
                 elide: Text.ElideMiddle
             }
             LogosCopyButton {
-                Layout.preferredHeight: 40
-                Layout.preferredWidth: 40
-                onCopyText: root.copyRequested(Base58.encode(model.accountId ?? ""))
+                Layout.alignment: Qt.AlignVCenter
+                value: Base58.encode(model.accountId ?? "")
                 visible: addressLabel.text
-                icon.color: Theme.palette.textMuted
             }
         }
 
