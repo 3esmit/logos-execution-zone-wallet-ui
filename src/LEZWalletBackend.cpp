@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
@@ -65,6 +66,18 @@ namespace {
     // An account is uninitialized until a program claims it (program_owner goes
     // from all-zero to the claiming program's ID). The wallet does not need to
     // identify that program: a non-zero owner is sufficient to show initialized.
+    // lez_core has no UI-facing concept of a statistics file; derive one deterministically
+    // next to the storage file so onboarding doesn't need a third path picker.
+    QString statisticsPathFor(const QString& localStoragePath) {
+        const QFileInfo info(localStoragePath);
+        return info.absolutePath() + QStringLiteral("/statistics.json");
+    }
+    // An account is uninitialized until some program claims it (program_owner goes
+    // from all-zero to that program's ID) — see DEFAULT_PROGRAM_ID in the execution
+    // zone's state machine. Accounts this wallet creates are only ever claimed by the
+    // authenticated-transfer program (via an explicit init or as a side effect of
+    // receiving a transfer to a still-unclaimed account), so "non-zero owner" is
+    // enough to show as initialized without needing that program's ID here.
     bool accountJsonIsInitialized(const QString& accountJson) {
         const QJsonDocument doc = QJsonDocument::fromJson(accountJson.toUtf8());
         if (!doc.isObject())
@@ -105,8 +118,13 @@ LEZWalletBackend::LEZWalletBackend(LogosAPI* logosAPI, QObject* parent)
       m_logosAPI(logosAPI ? logosAPI : new LogosAPI("lez_wallet_ui", this)),
       m_logos(new LogosModules(m_logosAPI))
 {
+    // Both feed the transfer/withdraw "from"/"to" account-picker combo boxes, where an
+    // uninitialized account isn't a usable sender or recipient — unlike m_accountModel
+    // (unfiltered), which AccountsPanel needs to keep showing them on for initialization.
+    m_filteredAccountModel->setOnlyInitialized(true);
     m_filteredAccountModel->setSourceModel(m_accountModel);
     m_privateAccountModel->setFilterByPublic(false);
+    m_privateAccountModel->setOnlyInitialized(true);
     m_privateAccountModel->setSourceModel(m_accountModel);
     m_claimableAccountModel->setSourceModel(m_accountModel);
 
@@ -182,7 +200,7 @@ void LEZWalletBackend::openIfPathsConfigured(int attempt)
 
     qDebug() << "LEZWalletBackend: opening wallet with config" << configPath()
              << "storage" << storagePath();
-    int err = m_logos->lez_core.open(configPath(), storagePath());
+    int err = m_logos->lez_core.open(configPath(), storagePath(), statisticsPathFor(storagePath()));
     if (err == WALLET_FFI_SUCCESS) {
         qDebug() << "LEZWalletBackend: wallet opened successfully";
         finishOpeningWallet();
@@ -225,6 +243,9 @@ QVariantList LEZWalletBackend::buildEnrichedAccountList()
         } else {
             map[QStringLiteral("is_initialized")] = accountJsonIsInitialized(accountJson);
         }
+        const QStringList labels = m_logos->lez_core.get_all_labels_for_account(accountId, !isPublic);
+        if (!labels.isEmpty())
+            map[QStringLiteral("name")] = labels.join(QStringLiteral(", "));
         enriched.append(map);
     }
     return enriched;
@@ -698,7 +719,10 @@ void LEZWalletBackend::applySequencerAddrToConfig(const QString& configPath, con
         obj[QStringLiteral("seq_poll_max_retries")]    = 10;
         obj[QStringLiteral("seq_block_poll_max_amount")] = 100;
     }
-    obj[QStringLiteral("sequencer_addr")] = sequencerAddr;
+    QJsonObject sequencerEntry;
+    sequencerEntry[QStringLiteral("sequencer_addr")] = sequencerAddr;
+    sequencerEntry[QStringLiteral("basic_auth")] = QJsonValue::Null;
+    obj[QStringLiteral("sequencers")] = QJsonArray{ sequencerEntry };
 
     QDir().mkpath(QFileInfo(configPath).absolutePath());
     if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
@@ -714,7 +738,7 @@ QString LEZWalletBackend::createNew(QString configPath, QString storagePath, QSt
     // user pointed us at (e.g. from the setup screen), not a request to
     // overwrite it. Try to load it instead of blindly creating a new one.
     if (QFile::exists(localConfigPath) && QFile::exists(localStoragePath)) {
-        int err = m_logos->lez_core.open(localConfigPath, localStoragePath);
+        int err = m_logos->lez_core.open(localConfigPath, localStoragePath, statisticsPathFor(localStoragePath));
         if (err != WALLET_FFI_SUCCESS) {
             return QStringLiteral(
                 "Could not load the wallet at the selected paths. Pick "
@@ -731,7 +755,7 @@ QString LEZWalletBackend::createNew(QString configPath, QString storagePath, QSt
         applySequencerAddrToConfig(localConfigPath, sequencerAddr);
 
     const QString mnemonic = m_logos->lez_core.create_new(
-        localConfigPath, localStoragePath, password);
+        localConfigPath, localStoragePath, statisticsPathFor(localStoragePath), password);
     if (mnemonic.isEmpty())
         return QStringLiteral("Failed to create wallet. Check paths and try again.");
 
@@ -745,4 +769,23 @@ void LEZWalletBackend::copyToClipboard(QString text)
 {
     if (QGuiApplication::clipboard())
         QGuiApplication::clipboard()->setText(text);
+}
+
+bool LEZWalletBackend::checkLabelAvailable(QString label)
+{
+    return m_logos->lez_core.check_label_available(label.trimmed());
+}
+
+QString LEZWalletBackend::addLabel(QString label, QString accountIdHex, bool isPublic)
+{
+    const QString trimmedLabel = label.trimmed();
+    if (trimmedLabel.isEmpty())
+        return QStringLiteral("Error: Label cannot be empty.");
+
+    const int err = m_logos->lez_core.add_label(trimmedLabel, accountIdHex.trimmed(), !isPublic);
+    if (err != WALLET_FFI_SUCCESS)
+        return QStringLiteral("Error: wallet FFI error %1").arg(err);
+
+    refreshAccounts();
+    return QString();
 }

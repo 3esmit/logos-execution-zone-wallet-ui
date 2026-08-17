@@ -16,7 +16,6 @@ Item {
 
     // --- Public API: signals out (match backend: bridge_withdraw) ---
     signal bridgeWithdrawRequested(string fromAccountId, string bedrockAccountPkHex, string amount)
-    signal copyRequested(string copyText)
 
     readonly property int fromFilterCount: fromCombo.count
 
@@ -58,7 +57,6 @@ Item {
                 Layout.fillWidth: true
                 model: root.publicAccountModel
                 visible: root.fromFilterCount > 0
-                onCopyRequested: (text) => root.copyRequested(text)
             }
         }
 

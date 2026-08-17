@@ -39,8 +39,8 @@ Rectangle {
     signal bridgeWithdrawRequested(string fromAccountId, string bedrockAccountPkHex, string amount)
     signal vaultClaimRequested(string fromAccountId, bool isPublic, string amount)
     signal refreshClaimableDepositsRequested()
-    signal copyRequested(string copyText)
     signal initializeAccountRequested(string accountId)
+    signal labelRequested(string accountId, bool isPublic)
 
     color: Theme.palette.background
 
@@ -67,8 +67,8 @@ Rectangle {
             onCreatePrivateAccountRequested: root.createPrivateAccountRequested()
             onRegisterPublicAccountRequested: (accountId) => root.registerPublicAccountRequested(accountId)
             onFetchBalancesRequested: root.fetchBalancesRequested()
-            onCopyRequested: (text) => root.copyRequested(text)
             onInitializeAccountRequested: (accountId) => root.initializeAccountRequested(accountId)
+            onLabelRequested: (accountId, isPublic) => root.labelRequested(accountId, isPublic)
         }
 
         TransferPanel {
@@ -92,7 +92,6 @@ Rectangle {
             onBridgeWithdrawRequested: (fromId, bedrockAccountPkHex, amount) => root.bridgeWithdrawRequested(fromId, bedrockAccountPkHex, amount)
             onVaultClaimRequested: (fromId, isPublic, amount) => root.vaultClaimRequested(fromId, isPublic, amount)
             onRefreshClaimableDepositsRequested: root.refreshClaimableDepositsRequested()
-            onCopyRequested: (copyText) => root.copyRequested(copyText)
         }
     }
 }

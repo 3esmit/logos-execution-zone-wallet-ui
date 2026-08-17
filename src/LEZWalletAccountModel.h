@@ -25,6 +25,10 @@ struct LEZWalletAccountEntry {
     // Whether some program has claimed this account yet. Defaults to false (shown as
     // needing initialization) so an account whose state we failed to enrich is not
     // silently mistaken for a usable one.
+    bool isFirstPrivate = false; // QML renders the single "Private" section title above rows where this is true
+    // Whether some program (in practice, the authenticated-transfer program) has claimed
+    // this account yet. Defaults to false (shown as needing init) so an account whose
+    // state we failed to enrich isn't silently mistaken for a usable one.
     bool isInitialized = false;
 };
 
@@ -48,6 +52,7 @@ public:
         KeysJsonRole,
         IsFirstInGroupRole,
         IsInitializedRole,
+        IsFirstPrivateRole,
         RegistrationRetryAllowedRole
     };
     Q_ENUM(Role)
