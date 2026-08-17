@@ -17,7 +17,6 @@ Item {
     signal bridgeWithdrawRequested(string fromAccountId, string bedrockAccountPkHex, string amount)
     signal vaultClaimRequested(string fromAccountId, bool isPublic, string amount)
     signal refreshClaimableDepositsRequested()
-    signal copyRequested(string copyText)
 
     ColumnLayout {
         anchors.fill: parent
@@ -54,7 +53,6 @@ Item {
                 transferPending: root.transferPending
 
                 onBridgeWithdrawRequested: (fromId, bedrockAccountPkHex, amount) => root.bridgeWithdrawRequested(fromId, bedrockAccountPkHex, amount)
-                onCopyRequested: (copyText) => root.copyRequested(copyText)
             }
 
             ClaimDepositPanel {

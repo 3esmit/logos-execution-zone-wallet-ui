@@ -23,7 +23,6 @@ Item {
     signal transferShieldedRequested(string fromAccountId, string toKeysJsonOrAddress, string amount)
     signal transferShieldedOwnedRequested(string fromAccountId, string toAccountId, string amount)
     signal transferDeshieldedRequested(string fromAccountId, string toAccountId, string amount)
-    signal copyRequested(string copyText)
 
     readonly property int fromFilterCount: fromCombo.count
     readonly property int toFilterCount: toCombo.count
@@ -122,7 +121,6 @@ Item {
                 Layout.fillWidth: true
                 model: (d.isPrivateTab || d.isDeshieldedTab) ? root.privateAccountModel : root.publicAccountModel
                 visible: root.fromFilterCount > 0
-                onCopyRequested: (text) => root.copyRequested(text)
             }
         }
 
@@ -165,7 +163,6 @@ Item {
                 Layout.fillWidth: true
                 model: (d.isPublicTab || d.isDeshieldedTab) ? root.publicAccountModel : root.privateAccountModel
                 visible: d.useOwnedAccountForTo && root.toFilterCount > 0
-                onCopyRequested: (text) => root.copyRequested(text)
             }
         }
 

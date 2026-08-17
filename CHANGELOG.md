@@ -2,6 +2,12 @@
 
 All notable changes to LEZ Wallet UI are documented in this file.
 
+## [1.1.0] - Alpha
+
+### Changed
+
+- Update the wallet UI package for the current release.
+
 ## [1.0.4] - Alpha
 
 ### Fixed
