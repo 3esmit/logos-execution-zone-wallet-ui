@@ -720,17 +720,17 @@
         "nix-bundle-lgx": "nix-bundle-lgx_67"
       },
       "locked": {
-        "lastModified": 1786974509,
+        "lastModified": 1786976621,
         "narHash": "sha256-IEe2bIqSXvEHuH61HORdp1RDpdf6ZBNj8Tvff7kc2jE=",
         "owner": "3esmit",
         "repo": "logos-execution-zone-module",
-        "rev": "4053564fe5dff0cd568840b2d7f52cbf37cdfb92",
+        "rev": "b8d353bd973fce7cd06b238f1a2362ede829c1df",
         "type": "github"
       },
       "original": {
         "owner": "3esmit",
         "repo": "logos-execution-zone-module",
-        "rev": "4053564fe5dff0cd568840b2d7f52cbf37cdfb92",
+        "rev": "b8d353bd973fce7cd06b238f1a2362ede829c1df",
         "type": "github"
       }
     },
